@@ -1,0 +1,14 @@
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- A 'parent' preference, which enables/disables child preferences (below)
+         when checked/unchecked. -->
+
+
+    <ListPreference
+        android:defaultValue="1"
+        android:entries="@array/theme_choice"
+        android:entryValues="@array/theme_choice"
+        android:key="theme"
+        android:title="@string/choose_theme" />
+
+</PreferenceScreen>
