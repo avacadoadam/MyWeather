@@ -112,14 +112,12 @@ public class MainActivity extends AppCompatActivity implements ArgoCallback, Loc
         Log.i(TAG, "onCreate: creating Argo API");
         argo = new Argo(UnitsOfMeasurements.valueOf(unit));
 
-        askForPermission();
-        if (!checkInternetPermission()) {
-            Log.i(TAG, "onCreate: displaying no internet error message");
-            displayErrorMessage("Must have internet to get weather ");
-            displayErrorMessage(getString(R.string.display_error_must_have_internet));
-            hideProgressBar();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Log.i(TAG, "onCreate: SDK over Android.M");
+            askForInternetPermission();
         } else {
-            Log.i(TAG, "onCreate: fetching API weather");
+            Log.i(TAG, "onCreate: Under Android.M");
             updateWeather();
         }
     }
@@ -136,19 +134,28 @@ public class MainActivity extends AppCompatActivity implements ArgoCallback, Loc
     }
 
     /**
-     * Asks for permission if SDK is under API level 23
+     * Asks for Internet permission if SDK is under API level 23
      */
-    private void askForPermission() {
-        if (Build.VERSION.SDK_INT >= 23) {
-            if (!checkInternetPermission()) {
-                requestInternetPermission();
-                Log.i(TAG, "onCreate: Internet not granted");
-            }
-            //if Location permission is not granted ask
-            if (!checkLocationPermission()) {
-                requestLocationPermission();
-                Log.i(TAG, "onCreate: Location not granted");
-            }
+    private void askForInternetPermission() {
+        if (!checkInternetPermission()) {
+            Log.i(TAG, "askForInternetPermission: Asking for internet permission");
+            ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.INTERNET}, INTERNET_PERMISSION_CODE);
+        } else {
+            Log.i(TAG, "askForInternetPermission: already has internet permission");
+            askForLocationPermission();
+        }
+    }
+
+    /**
+     * Asks for Location permission if SDK is under API level 23
+     */
+    private void askForLocationPermission() {
+        if (!checkLocationPermission()) {
+            Log.i(TAG, "askForLocationPermission: asking for location permission");
+            ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_CODE);
+        } else {
+            Log.i(TAG, "askForLocationPermission: already has location permission");
+            updateWeather();
         }
     }
 
@@ -162,40 +169,38 @@ public class MainActivity extends AppCompatActivity implements ArgoCallback, Loc
 
 
     /**
-     * Asks user if we can have Location Coarse permission through a alertDialog box if user accepts a permission dialog is started for system.
+     * Asks user if we can have Internet permission through a alertDialog box if user accepts a permission dialog is started for system.
      */
     private void requestInternetPermission() {
-        if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.INTERNET)) {
-            new AlertDialog.Builder(this)
-                    .setTitle(R.string.permission_needed)
-                    .setMessage(getString(R.string.why_permission_is_needed))
-                    .setPositiveButton(getString(R.string.ok), (dialog, which) -> ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.INTERNET}, INTERNET_PERMISSION_CODE))
-                    .setNegativeButton(getString(R.string.cancel), (dialog, which) -> {
-                        Log.i(TAG, "onClick: User wont grant Internet permission");
-                        dialog.cancel();
-                    }).show();
-        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.permission_needed)
+                .setMessage(getString(R.string.why_permission_is_needed))
+                .setPositiveButton(getString(R.string.ok), (dialog, which) -> ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.INTERNET}, INTERNET_PERMISSION_CODE))
+                .setNegativeButton(getString(R.string.cancel), (dialog, which) -> {
+                    Log.i(TAG, "onClick: User wont grant Internet permission");
+                    dialog.cancel();
+                }).show();
+
     }
 
     /**
-     * Asks user if we can have Location Coarse permission through a alertDialog box if user accepts a permission dialog is started for system.
+     * Asks user if we can have Location fine permission through a alertDialog box if user accepts a permission dialog is started for system.
      */
     private void requestLocationPermission() {
-        if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
-            Log.i(TAG, "requestLocationPermission: shouldShowRequestPermissionRationale = true");
-            new AlertDialog.Builder(this)
-                    .setTitle(R.string.permission_needed)
-                    .setMessage(getString(R.string.why_permission_is_needed))
-                    .setPositiveButton(getString(R.string.ok), (dialog, which) -> ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_CODE))
-                    .setNegativeButton(getString(R.string.cancel), (dialog, which) -> {
-                        Log.i(TAG, "onClick: User wont grant permission");
-                        dialog.cancel();
-                    }).show();
-        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.permission_needed)
+                .setMessage(getString(R.string.why_permission_is_needed))
+                .setPositiveButton(getString(R.string.ok), (dialog, which) -> ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_CODE))
+                .setNegativeButton(getString(R.string.cancel), (dialog, which) -> {
+                    Log.i(TAG, "onClick: User wont grant permission");
+                    dialog.cancel();
+                }).show();
+
     }
 
     /**
-     * Is called when a user accepts or denies a Permission reques
+     * Is called when a user accepts or denies a Permission request
+     * Will handle flow of permissions if application is under sdk 23
      *
      * @param requestCode  The request code passed in requestPermissions(android.app.Activity, String[], int)
      * @param permissions  String: The requested permissions. Never null.
@@ -203,15 +208,36 @@ public class MainActivity extends AppCompatActivity implements ArgoCallback, Loc
      */
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        if (requestCode == LOCATION_PERMISSION_CODE) {
+        if (requestCode == INTERNET_PERMISSION_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Log.i(TAG, "onRequestPermissionsResult: location permission code grantResults[0] = " + grantResults[0]);
-                Toast.makeText(this, "Permission Location granted", Toast.LENGTH_SHORT).show();
+                Log.i(TAG, "onRequestPermissionsResult: Internet Permission granted");
+                askForLocationPermission();
+            } else {
+                Log.i(TAG, "onRequestPermissionsResult: Internet Permission not granted");
+                if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.INTERNET)) {
+                    Log.i(TAG, "onRequestPermissionsResult: Asking for Internet permission again");
+                    requestInternetPermission();
+                } else {
+                    Log.i(TAG, "onRequestPermissionsResult: Can't ask for internet permission again");
+                    Log.i(TAG, "onRequestPermissionsResult: displaying no internet error message");
+                    displayErrorMessage(getString(R.string.display_error_must_have_internet));
+                    hideProgressBar();
+                }
             }
-        } else if (requestCode == INTERNET_PERMISSION_CODE) {
+        } else if (requestCode == LOCATION_PERMISSION_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Log.i(TAG, "onRequestPermissionsResult: Internet permission code grantResults[0] = " + grantResults[0]);
-                Toast.makeText(this, "Permission Internet granted", Toast.LENGTH_SHORT).show();
+                Log.i(TAG, "onRequestPermissionsResult: Location Permission granted");
+                updateWeather();
+            } else {
+                Log.i(TAG, "onRequestPermissionsResult: Location permission not granted");
+                if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
+                    Log.i(TAG, "onRequestPermissionsResult: Asking for Location permission again");
+                    requestLocationPermission();
+                } else {
+                    Log.i(TAG, "onRequestPermissionsResult: Can't ask for Location permission again");
+                    Log.i(TAG, "onRequestPermissionsResult: Calling weather which will handle");
+                    updateWeather();
+                }
             }
         }
     }
@@ -359,7 +385,7 @@ public class MainActivity extends AppCompatActivity implements ArgoCallback, Loc
      */
     private void updateWeather() {
         showProgressBar(getString(R.string.show_progress_getting_weather));
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+        if (checkLocationPermission()) {
             Log.i(TAG, "updateWeather: is locationManager is null = " + (locationManager == null));
             if (locationManager == null)
                 locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
